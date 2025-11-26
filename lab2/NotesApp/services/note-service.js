@@ -31,11 +31,12 @@ export const getNotes = async (userId = null) => {
 };
 
 // Create a new note
-export const createNote = async (data) => {
+export const createNote = async (data, userId) => {
   try {
-    // Add timestamps to the note data
+    // Add timestamps and userId to the note data
     const noteData = {
       ...data,
+      userId: userId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

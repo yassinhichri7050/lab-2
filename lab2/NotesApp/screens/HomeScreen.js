@@ -1,7 +1,25 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { useAuth } from "../contexts/AuthContext";
+import LogoutButton from "../components/LogoutButton";
 
 export default function HomeScreen({ navigation }) {
+  const { user, isAuthenticated, loading } = useAuth();
+
+  // Redirect to Auth if not authenticated
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      navigation.replace("Auth");
+    }
+  }, [loading, isAuthenticated, navigation]);
+
+  // Set up the header with logout button
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => <LogoutButton navigation={navigation} />,
+    });
+  }, [navigation]);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -9,7 +27,9 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.welcomeText}>Welcome to Notes App</Text>
+        <Text style={styles.welcomeText}>
+          Welcome, {user?.name || "User"}!
+        </Text>
         <Text style={styles.instructionText}>
           Keep your ideas, lists, and reminders in one place
         </Text>
@@ -18,7 +38,7 @@ export default function HomeScreen({ navigation }) {
           style={styles.notesButton}
           onPress={() => navigation.navigate("Notes")}
         >
-          <Text style={styles.buttonText}>Go to Notes</Text>
+          <Text style={styles.buttonText}>View Notes</Text>
         </TouchableOpacity>
       </View>
     </View>

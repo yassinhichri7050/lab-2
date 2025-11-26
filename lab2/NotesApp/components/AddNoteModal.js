@@ -10,12 +10,15 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { createNote } from "../services/note-service";
+import { useAuth } from "../contexts/AuthContext";
 
 const AddNoteModal = ({ visible, onClose, onNoteAdded }) => {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const { user } = useAuth();
 
   // Reset form state
   const resetForm = () => {
@@ -38,6 +41,11 @@ const AddNoteModal = ({ visible, onClose, onNoteAdded }) => {
       return;
     }
 
+    if (!user) {
+      setError("You must be logged in to create a note");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -46,11 +54,10 @@ const AddNoteModal = ({ visible, onClose, onNoteAdded }) => {
       const noteData = {
         title: title.trim(),
         content: content.trim(),
-        userId: "current-user-id", // We'll replace this with actual user ID later
       };
 
-      // Call create note service
-      const newNote = await createNote(noteData);
+      // Call create note service with userId
+      const newNote = await createNote(noteData, user.$id);
 
       // Reset form and close modal
       resetForm();

@@ -12,21 +12,14 @@ class NoteService {
     _databases = Databases(_client);
   }
 
-  // Get all notes, potentially filtered by userId
-  Future<List<Document>> getNotes({String? userId}) async {
+  // Get notes for a specific user ordered by creation date
+  Future<List<Document>> getNotes(String userId) async {
     try {
-      // Create query list - initially empty
-      List<String> queries = [];
+      final List<String> queries = [
+        Query.equal('userId', userId),
+        Query.orderDesc('createdAt'),
+      ];
 
-      // If userId is provided, add a filter
-      if (userId != null) {
-        queries.add(Query.equal('userId', userId));
-      }
-
-      // Add sorting by createdAt descending
-      queries.add(Query.orderDesc('createdAt'));
-
-      // Fetch documents from the database
       final response = await _databases.listDocuments(
         databaseId: dotenv.env['APPWRITE_DATABASE_ID']!,
         collectionId: dotenv.env['APPWRITE_COLLECTION_ID']!,
@@ -40,12 +33,16 @@ class NoteService {
     }
   }
 
-  // Create a new note
-  Future<Document> createNote(Map<String, dynamic> data) async {
+  // Create a new note scoped to the authenticated user
+  Future<Document> createNote(
+    Map<String, dynamic> data,
+    String userId,
+  ) async {
     try {
       // Add timestamps to the note data
       final noteData = {
         ...data,
+        'userId': userId,
         'createdAt': DateTime.now().toIso8601String(),
         'updatedAt': DateTime.now().toIso8601String(),
       };

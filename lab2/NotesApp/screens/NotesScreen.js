@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { getNotes, deleteNote } from "../services/note-service";
+import { useAuth } from "../contexts/AuthContext";
 import NoteItem from "../components/NoteItem";
 import AddNoteModal from "../components/AddNoteModal";
 
@@ -18,15 +19,21 @@ const NotesScreen = () => {
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
 
+  const { user } = useAuth();
+
   useEffect(() => {
     fetchNotes();
-  }, []);
+  }, [user]);
 
   // Fetch notes depuis Appwrite
   const fetchNotes = async () => {
+    if (!user) {
+      return;
+    }
+
     try {
       setLoading(true);
-      const fetchedNotes = await getNotes();
+      const fetchedNotes = await getNotes(user.$id);
       setNotes(fetchedNotes);
       setError(null);
     } catch (err) {
@@ -63,7 +70,7 @@ const NotesScreen = () => {
   if (loading && notes.length === 0) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#0000ff" />
+        <ActivityIndicator size="large" color="#3498db" />
       </View>
     );
   }
@@ -101,7 +108,20 @@ const NotesScreen = () => {
             onNoteUpdated={handleNoteUpdated}
           />
         )}
-        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          !loading && (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyTitle}>No notes yet</Text>
+              <Text style={styles.emptyText}>
+                You don't have any notes yet.
+              </Text>
+              <Text style={styles.emptyText}>
+                Tap the "+ Add Note" button to create your first note.
+              </Text>
+            </View>
+          )
+        }
+        contentContainerStyle={notes.length === 0 ? styles.emptyListContent : styles.listContent}
         refreshing={loading}
         onRefresh={fetchNotes}
       />
@@ -145,6 +165,29 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 20,
+  },
+  emptyListContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingBottom: 100,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 40,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#95a5a6",
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#95a5a6",
+    textAlign: "center",
+    marginBottom: 8,
   },
   centered: {
     flex: 1,

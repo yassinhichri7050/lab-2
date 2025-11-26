@@ -1,8 +1,12 @@
-import 'package:flutter/material.dart';
 import 'package:appwrite/models.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/auth_provider.dart';
 import '../services/note_service.dart';
-import '../widgets/note_item.dart';
 import '../widgets/add_note_modal.dart';
+import '../widgets/logout_button.dart';
+import '../widgets/note_item.dart';
 
 class NotesScreen extends StatefulWidget {
   const NotesScreen({Key? key}) : super(key: key);
@@ -16,22 +20,34 @@ class _NotesScreenState extends State<NotesScreen> {
   List<Document> _notes = [];
   bool _isLoading = true;
   String? _error;
+  bool _redirected = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchNotes();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchNotes());
   }
 
   // Function to fetch notes from the database
   Future<void> _fetchNotes() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.user;
+
+    if (user == null) {
+      setState(() {
+        _notes = [];
+        _isLoading = false;
+      });
+      return;
+    }
+
     try {
       setState(() {
         _isLoading = true;
         _error = null;
       });
 
-      final fetchedNotes = await _noteService.getNotes();
+      final fetchedNotes = await _noteService.getNotes(user.$id);
 
       setState(() {
         _notes = fetchedNotes;
@@ -47,29 +63,28 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   // Show the add note dialog
-  void _showAddNoteDialog() {
+  void _showAddNoteDialog(String userId) {
     showDialog(
       context: context,
       builder: (context) => AddNoteModal(
         onNoteAdded: _handleNoteAdded,
+        userId: userId,
       ),
     );
   }
 
   // Add the new note to the state without refetching
-  void _handleNoteAdded(Map<String, dynamic> noteData) {
-    final newNote = Document(
-      $id: noteData['\$id'] ?? 'temp-id',
-      $collectionId: 'notes',
-      $databaseId: 'NotesDB',
-      $createdAt: DateTime.now().toString(),
-      $updatedAt: DateTime.now().toString(),
-      $permissions: [],
-      data: noteData,
-    );
-
+  void _handleNoteAdded(Document note) {
     setState(() {
-      _notes = [newNote, ..._notes];
+      _notes = [note, ..._notes];
+    });
+  }
+
+  void _handleNoteUpdated(Document updatedNote) {
+    setState(() {
+      _notes = _notes
+          .map((note) => note.$id == updatedNote.$id ? updatedNote : note)
+          .toList();
     });
   }
 
@@ -80,20 +95,39 @@ class _NotesScreenState extends State<NotesScreen> {
     });
   }
 
+  void _redirectIfNeeded(AuthProvider authProvider) {
+    if (_redirected) return;
+    if (!authProvider.loading && !authProvider.isAuthenticated) {
+      _redirected = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, 'auth');
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    _redirectIfNeeded(authProvider);
+    final user = authProvider.user;
+
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Notes'),
+        actions: const [LogoutButton()],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with title and add button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'My Notes',
+                  'All Notes',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -101,41 +135,59 @@ class _NotesScreenState extends State<NotesScreen> {
                   ),
                 ),
                 ElevatedButton(
-                  onPressed: _showAddNoteDialog,
+                  onPressed: user == null
+                      ? null
+                      : () => _showAddNoteDialog(user.$id),
                   child: const Text('+ Add Note'),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-
-            // Loading indicator
             if (_isLoading && _notes.isEmpty)
               const Expanded(
                 child: Center(child: CircularProgressIndicator()),
-              ),
-
-            // Error message
-            if (_error != null && _notes.isEmpty)
+              )
+            else if (_error != null && _notes.isEmpty)
               Expanded(
                 child: Center(
                   child: Text(
                     _error!,
                     style: const TextStyle(color: Colors.red, fontSize: 16),
+                    textAlign: TextAlign.center,
                   ),
                 ),
-              ),
-
-            // Notes list
-            if (!_isLoading || _notes.isNotEmpty)
+              )
+            else if (!_isLoading && _notes.isEmpty)
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _fetchNotes,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [
+                      SizedBox(height: 120),
+                      Center(
+                        child: Text(
+                          "You don’t have any notes yet. Tap the button to create your first note!",
+                          style: TextStyle(fontSize: 16, color: Colors.black54),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: _fetchNotes,
                   child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     itemCount: _notes.length,
                     itemBuilder: (context, index) {
                       return NoteItem(
                         note: _notes[index],
-                        onNoteDeleted: _handleNoteDeleted, // ✅ important
+                        onNoteDeleted: _handleNoteDeleted,
+                        onNoteUpdated: _handleNoteUpdated,
                       );
                     },
                   ),

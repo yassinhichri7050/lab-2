@@ -1,13 +1,17 @@
 // lib/widgets/add_note_modal.dart
+import 'package:appwrite/models.dart';
 import 'package:flutter/material.dart';
+
 import '../services/note_service.dart';
 
 class AddNoteModal extends StatefulWidget {
-  final Function(Map<String, dynamic>) onNoteAdded;
+  final Function(Document) onNoteAdded;
+  final String userId;
 
   const AddNoteModal({
     Key? key,
     required this.onNoteAdded,
+    required this.userId,
   }) : super(key: key);
 
   @override
@@ -58,14 +62,13 @@ class _AddNoteModalState extends State<AddNoteModal> {
       final noteData = {
         'title': title,
         'content': content,
-        'userId': 'current-user-id', // À remplacer par le vrai user ID
       };
 
-      final newNote = await _noteService.createNote(noteData);
+      final newNote = await _noteService.createNote(noteData, widget.userId);
 
       _resetForm();
 
-      widget.onNoteAdded(newNote.data);
+      widget.onNoteAdded(newNote);
       Navigator.pop(context);
     } catch (e) {
       print('Error creating note: $e');
